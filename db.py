@@ -1,9 +1,11 @@
-import psycopg2
-import psycopg2.extras
-import psycopg2.extensions
 import time
 import threading
 from functools import wraps
+
+import psycopg2
+import psycopg2.extras
+import psycopg2.extensions
+
 from flask import g
 
 # Default exports

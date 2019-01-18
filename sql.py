@@ -113,8 +113,8 @@ def query_json_strings(con, stmt, params=None):
         buf.append(']')
 
         return ''.join(buf)
-    else:
-        return '[]'  # smell like empty json array.
+
+    return '[]'  # smell like empty json array.
 
 
 query_single = query_single_row  # Alias.
@@ -225,7 +225,7 @@ def update(con, table_name: str,
     statement = 'update %s set %s where %s' % \
                 (table_name, update_column_part, where_column_part)
 
-    return execute(con, statement, values)
+    return execute(con, statement, values_tuple)
 
 
 def get_pct_s_string(values):
@@ -251,7 +251,7 @@ def bulk_insert(con, tableName: str, rowDictList: list,
 
     if not rowDictList:
         # Nothing to insert!
-        return
+        return None
 
     if colList is not None:
         colList = sorted(colList)
@@ -324,9 +324,9 @@ def bulk_insert(con, tableName: str, rowDictList: list,
 
     if return_column:
         return return_results
-    else:
-        # Just the rowcount
-        return rc
+
+    # Otherwise just the rowcount
+    return rc
 
 
 class LiteralValue(str):
@@ -340,3 +340,4 @@ class LiteralValue(str):
     def __conform__(self, proto):
         if proto == psycopg2.extensions.ISQLQuote:
             return self
+        return None
