@@ -199,7 +199,7 @@ def register_composite_types():
     con = mc.begin_transaction()
 
     typeconverters = [o for o in psycopg2.__dict__.values() if
-                      isinstance(o, psycopg2.STRING)]
+                      type(o) is psycopg2.STRING]
 
     oid_to_typeconverter = {}
     for tc in typeconverters:
