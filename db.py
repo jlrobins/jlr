@@ -16,7 +16,7 @@ __all__ = ('configure_flask', 'configure_flask_socketio')
 ###
 
 
-def configure_flask(flask_app, params, idle_timeout_secs=30):
+def configure_flask(flask_app, params, idle_timeout_secs=30, register_types=True):
     ###
     # Configure db access for a regular (non-socketio) flask app.
     # Set up DB-oriented before_first_request(), before_request(), and
@@ -33,7 +33,9 @@ def configure_flask(flask_app, params, idle_timeout_secs=30):
     configure(params, timeout_secs=idle_timeout_secs)
 
     flask_app.before_first_request(mc.start_closing_thread)
-    flask_app.before_first_request(register_composite_types)
+
+    if register_types:
+        flask_app.before_first_request(register_composite_types)
 
     def begin_and_assign_tx():
         g.con = mc.begin_transaction()
