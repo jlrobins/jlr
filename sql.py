@@ -116,6 +116,25 @@ def query_json_strings(con, stmt, params=None):
 
     return '[]'  # smell like empty json array.
 
+def query_as_json(con, stmt, params=None):
+    ###
+    # Take a vanilla query returning regular rows
+    # ('select a, b, c from foo where x=%s')
+    # and wrap it in a CTE which projects each row
+    # as JSON -> string. Then pass that into
+    # query_json_strings to ultimately return
+    # a single string containing a json array of rows
+    # ( '[{"a": 12, "b": 44, "c":14},
+    #     {"a": 44, "b": 23, "c":65}]' )
+
+    buf = []
+    buf.append('with data as (')
+    buf.append(stmt)
+    buf.append(') select to_json(d.*)::text from data d')
+
+    stmt = '\n'.join(buf)
+    return query_json_strings(con, stmt, params)
+
 
 query_single = query_single_row  # Alias.
 
@@ -240,7 +259,7 @@ def bulk_insert(con, tableName: str, rowDictList: list,
     #   Bulk-insert the rows in rowDictList using single-round trip
     #     "insert into ... values (), (), ... ()"
     #
-    #   One round-trip instead of embedding insert_builder inside of loops
+    #   One round-trip instead of embedding insert() calls inside of loops
     #     for inserting rows into the same table.
     #
     #   Returns either the count of inserted rows [ default ],
