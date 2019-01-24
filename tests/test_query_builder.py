@@ -86,13 +86,13 @@ def test_right_join_on():
 
 	qb.relation('document d') \
 		.right_join('email_documents.email em',
-					on='d.document_id == em.document_id') \
+					on='d.document_id = em.document_id') \
 		.project('count(*)')
 
 	assert qb.statement == \
 			'SELECT count(*) FROM document d' \
 			' RIGHT JOIN email_documents.email em' \
-			' ON (d.document_id == em.document_id)', qb.statement
+			' ON (d.document_id = em.document_id)', qb.statement
 
 
 def test_full_outer_join_on():
@@ -100,25 +100,62 @@ def test_full_outer_join_on():
 
 	qb.relation('document d') \
 		.outer_join('email_documents.email em',
-					on='d.document_id == em.document_id') \
+					on='d.document_id = em.document_id') \
 		.project('count(*)')
 
 	assert qb.statement == \
 			'SELECT count(*) FROM document d' \
 			' FULL OUTER JOIN email_documents.email em' \
-			' ON (d.document_id == em.document_id)', qb.statement
+			' ON (d.document_id = em.document_id)', qb.statement
 
-def test_multiple_joins():
+def test_additional_joins():
+	qb = QueryBuilder()
+
+	qb.relation('document d') \
+		.join('email_documents.email em',
+					on='d.document_id = em.document_id') \
+		.left_join('document_comment dc',
+					using='legal_case_id, document_id') \
+		.project('count(*)')
+
+	assert qb.statement == \
+			'SELECT count(*) FROM document d' \
+			' INNER JOIN email_documents.email em' \
+			' ON (d.document_id = em.document_id)' \
+			' LEFT JOIN document_comment dc' \
+			' USING (legal_case_id, document_id)', qb.statement
+
+def test_multiple_join_noop():
+	# Adding same exact join clause should be a no-op.
 	qb = QueryBuilder()
 
 	qb.relation('document d') \
 		.join('email_documents.email em',
 					on='d.document_id == em.document_id') \
-		.left_join('document_comment dc',
-					using='legal_case_id, document_id')
+		.join('email_documents.email em',
+					on='d.document_id == em.document_id') \
 		.project('count(*)')
 
 	assert qb.statement == \
 			'SELECT count(*) FROM document d' \
-			' FULL OUTER JOIN email_documents.email em' \
+			' INNER JOIN email_documents.email em' \
 			' ON (d.document_id == em.document_id)', qb.statement
+
+def test_multiple_join_different_aliases_honored():
+	# Adding same exact join clause should be a no-op.
+	qb = QueryBuilder()
+
+	qb.relation('document d') \
+		.join('email_documents.email em',
+					on='d.document_id == em.document_id') \
+		.join('email_documents.email em2',
+					on='d.document_id == em2.document_id and em2.document_id > 12') \
+		.project('count(*)')
+
+	assert qb.statement == \
+			'SELECT count(*) FROM document d' \
+			' INNER JOIN email_documents.email em' \
+			' ON (d.document_id == em.document_id)' \
+			' INNER JOIN email_documents.email em2' \
+			' ON (d.document_id == em2.document_id' \
+			' and em2.document_id > 12)', qb.statement

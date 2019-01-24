@@ -11,18 +11,30 @@ class QueryBuilder:
         self._joins = []
         self._where = None
         self._group_by = []
+        self._relation_aliases = set()
 
         self._parameters = []
 
     def relation(self, main_relation_to_query):
         self._main_relation = main_relation_to_query
+        self._scan_alias(main_relation_to_query)
+
         return self
 
     def join(self, relation, on=None, using=None, params=None, kind='INNER'):
         assert len(list(v for v in (on, using) if v)) == 1, \
                                     'At most one of on or using'
 
-        self._joins.append((relation, on, using, kind, params))
+        join_tuple = (relation, on, using, kind, params)
+
+        # Multiple calls to join() with same params become
+        # no-ops. Lets distinct blocks of code needing to
+        # add the same join in order to ultimately add in additional
+        # where clauses happen w/o additional communication.
+        if join_tuple not in self._joins:
+            self._joins.append(join_tuple)
+            self._scan_alias(relation)
+
         return self
 
     def left_join(self, relation, on=None, using=None, params=None):
@@ -99,6 +111,23 @@ class QueryBuilder:
     @property
     def parameters(self):
         return tuple(self._parameters)
+
+    def _scan_alias(self, relation_expr):
+        assert '"' not in relation_expr, \
+            'Not smart enough for quoted relations, masochist!'
+
+        if ' ' in relation_expr:
+            # Not smart enough for 'as' kword yet, but that
+            # goes in here when/if time comes. We'll vomit
+            # if there's more than one space joined word
+            # at least.
+            relation, alias = relation_expr.split(' ')
+            if alias in self._relation_aliases:
+                raise AliasException('Already using relation alias %s' % alias)
+            self._relation_aliases.add(alias)
+
+class AliasException(Exception):
+    pass
 
 class ExpressionAndParams:
     def __init__(self, expression, parameters):
