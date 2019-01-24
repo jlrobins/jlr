@@ -34,7 +34,7 @@ def test_out_of_order_params():
 	qb.relation('document') \
 		.project('document_id') \
 		.having('count(*) > %s', 999) \
-		.where('a between %s and %s', 555, 666) \
+		.where('a between %s and %s', (555, 666)) \
 		.join('foo f', on='f.id = d.id and f.id > %s and d.id < %s', params=(99, 22)) \
 		.join('bar b', on='b.id = d.id and b.id in %s', params=(('a', 'b'),))
 

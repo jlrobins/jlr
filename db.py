@@ -172,11 +172,15 @@ mc = None
 
 
 def configure(params, timeout_secs=30,
-              cursor_factory=psycopg2.extras.NamedTupleCursor):
+              cursor_factory=psycopg2.extras.NamedTupleCursor,
+              connect=False):
     global mc
 
     mc = ManagedConnection(params, timeout_secs=timeout_secs,
                            cursor_factory=cursor_factory)
+
+    if connect:
+        return mc.begin_transaction()
 
 def connection():
     return mc.begin_transaction()

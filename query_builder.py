@@ -1,23 +1,27 @@
+import collections
+
 class QueryBuilder:
     ###
     # Build up a SELECT programmatically.
     ###
 
-    def __init__(self, kind='SELECT'):
+    def __init__(self, toplevel_clause=None, kind='SELECT'):
         self._kind = kind
+
+        if not toplevel_clause:
+            toplevel_clause = AND()
+        self._where = toplevel_clause
 
         self._projections = []
         self._main_relation = None
         self._joins = []
-        self._where = None
+
         self._group_by = []
 
         self._having = []
         self._having_params = []
 
         self._relation_aliases = set()
-
-        self._where_params = []
 
     def relation(self, main_relation_to_query):
         self._main_relation = main_relation_to_query
@@ -66,14 +70,8 @@ class QueryBuilder:
         self._group_by.extend(args)
         return self
 
-    def where(self, expression, *params):
-        if isinstance(expression, ExpressionAndParams):
-            assert not params
-            self._where = expression.expression
-            self._where_params.extend(expression.parameters)
-        else:
-            self._where = expression
-            self._where_params.extend(params)
+    def where(self, *args):
+        self._where.append(args)
 
         return self
 
@@ -104,9 +102,9 @@ class QueryBuilder:
                             kind, relation, how, how_expression))
 
 
-        if self._where:
+        if self._where.expression:
             buf.append('WHERE')
-            buf.append(self._where)
+            buf.append(self._where.expression)
 
 
         if self._group_by:
@@ -133,7 +131,7 @@ class QueryBuilder:
                 else:
                     params.append(join_params)
 
-        params.extend(self._where_params)
+        params.extend(self._where.parameters)
         params.extend(self._having_params)
 
         return tuple(params)
@@ -156,52 +154,150 @@ class AliasException(Exception):
     pass
 
 class ExpressionAndParams:
-    def __init__(self, expression, parameters):
-        self.expression = expression
-        self.parameters = parameters
+    def __init__(self, operator: str, operands):
+        self.operator = operator
+        self._operands = []
 
-    @classmethod
-    def binary_expression(cls, op, args):
+        if operands:
+            assert isinstance(operands, collections.Sequence) \
+                and not isinstance(operands, str)
+
+            for op in operands:
+                # make use of member-wise check in this method.
+                self.append(op)
+
+        # String, as in '(foo=%s) AND (bar like %s)', determined very late
+        # in _expand() when diven by 1st dereference to either
+        # .expression or .parameters properties.
+        self._expression = None
+
+        # Tuple, as in (42, 'Joe %'), , determined very late
+        # in _expand() when diven by 1st dereference to either
+        # .expression or .parameters properties.
+        self._parameters = None
+
+
+    def append(self, *args):
+        # args should be one of:
+        #
+        #   0) a single tuple, from .where's *args. Process its single member
+        #   1) expression string, tuple of multiple params
+        #   2) expression string, param single non-tuple
+        #   3) expression string only, no additional params.
+        #   4) expression string, more than one arg not wrapped in tuple.
+        #   5) a single subordinate ExpressionAndParams clause.
+
+        # In the case of 2), we go ahead and wrap as a singleton tuple
+        # just to make _expand() a little simpler in only needing to then
+        # deal with two cases.
+
+        # In case of 3) we also make things a little easier for _expand,
+        # by tacking on an empty tuple as the params for that clause.
+
+        # Likewise for 4) : wrap the trailing parameters in a single tuple.
+
+        print('%d %r' % (len(args), args))
+
+        # Case 0:
+        if len(args) == 1 and isinstance(args, tuple):
+            args = args[0]
+
+        # Case 1: expression string, tuple of multiple params
+        if isinstance(args, tuple) and len(args) == 2 and isinstance(args[0], str) \
+                and isinstance(args[1], tuple):
+            self._operands.append(args)
+        # Case 2: expression string, param single non-tuple
+        elif isinstance(args, tuple) and len(args) == 2 and isinstance(args[0], str) \
+                and not isinstance(args[1], tuple):
+            self._operands.append(tuple((args[0], (args[1],))))
+
+        # Case 3: expression string only in a tuple, no additional params.
+        elif isinstance(args, tuple) and len(args) == 1 and isinstance(args[0], str):
+            self._operands.append((args[0], ()))
+
+        # Case 3a: bare expression string, no tuple wrapping
+        elif isinstance(args, str):
+            self._operands.append((args, ()))
+
+        # Case 4: expression string, more than one parameter not wrapped
+        # in a tuple. Bundle 'em, all up into a tuple.
+        elif isinstance(args, tuple) and len(args) > 2 and isinstance(args[0], str):
+            self._operands.append((args[0], tuple(args[1:])))
+        # Case 5: a single subordinate ExpressionAndParams clause.
+        elif isinstance(args, ExpressionAndParams):
+            self._operands.append(args)
+        # Case 6: a tuple containing an ExpressionAndParams
+        elif isinstance(args, tuple) and len(args) == 1 \
+                and isinstance(args[0], ExpressionAndParams):
+            self._operands.append(args[0])
+        else:
+            raise TypeError("Don't know how to handle %r: %s %s" %
+                    (args, len(args), isinstance(args[0], str),))
+
+
+    @property
+    def expression(self):
+        if self._expression is None:
+            self._expand()
+
+        return self._expression
+
+    @property
+    def parameters(self):
+        if self._parameters is None:
+            self._expand()
+
+        return self._parameters
+
+
+    def _expand(self):
+
+        ##
+        # Assign to ._expression and ._params
+        # by visiting all in ._operands
+        ##
+
         params = []
         exp_buf = []
 
-        for arg in args:
-            if isinstance(arg, str):
-                # Just a bare expression, no param list.
-                exp_buf.append(arg)
-            elif isinstance(arg, tuple):
-                assert len(arg) == 2, \
-                    'Expect only a pair of (expression, param (str or tuple)'
+        for o in self._operands:
+            # Sanity check operand. Should be either
+            #   1) tuple of (str expression, tuple of params)
+            #   2) subordinate ExpressionAndParams instances.
+            assert (isinstance(o, tuple)
+                        and len(o) == 2
+                        and isinstance(o[0], str)
+                        and isinstance(o[1], tuple)) or (
+                    isinstance(o, ExpressionAndParams)
+                    ), 'Unexpected member of ._operands: %r' % (o,)
 
-                expr, prms = arg
-                exp_buf.append(expr)
-                if isinstance(prms, tuple):
-                    # More than one param provided
-                    params.extend(prms)
-                else:
-                    # Just one single param of one kind or another.
-                    params.append(prms)
-            elif isinstance(arg, ExpressionAndParams):
-                exp_buf.append(arg.expression)
-                params.extend(arg.parameters)
-
+            if isinstance(o, tuple):
+                exp_buf.append(o[0])
+                params.extend(o[1])
+            elif isinstance(o, ExpressionAndParams):
+                # Recurse into it ...
+                exp_buf.append(o.expression)
+                params.extend(o.parameters)
             else:
-                raise Exception('Unknown parameter: %r' % arg)
+                raise Exception('Unknown operand: %r' % (arg,))
 
         if len(exp_buf) > 1:
-            # op (AND or OR) join these buggers
-            spaced_op = ' %s ' % op
+            # operator (AND or OR) join these buggers
+            spaced_op = ' %s ' % self.operator
             expression = spaced_op.join('(' + e + ')' for e in exp_buf)
 
-        else:
-            # No need for or and parens.
+        elif len(exp_buf) == 1:
+            # Just one single clause, no need for joining together.
             expression = exp_buf[0]
+        else:
+            # No clause at all!
+            expression = ''
 
-        # Compatible with being fed right into .where()
-        return ExpressionAndParams(expression, params)
+        self._expression = expression
+        self._parameters = params
 
 def OR(*args):
-    return ExpressionAndParams.binary_expression('OR', args)
+    return ExpressionAndParams('OR', args)
 
 def AND(*args):
-    return ExpressionAndParams.binary_expression('AND', args)
+    return ExpressionAndParams('AND', args)

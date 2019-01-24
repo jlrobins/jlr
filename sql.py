@@ -1,6 +1,9 @@
 import psycopg2
 import psycopg2.extras
 
+from jlr.query_builder import QueryBuilder, AND, OR
+
+
 ###
 # James' convienence layer atop psycopg2.
 #
@@ -70,6 +73,7 @@ def query_single_row(con, stmt, params=None):
 
     return r
 
+query_single = query_single_row  # Alias.
 
 def query(con, stmt, params=None):
     ###
@@ -134,9 +138,6 @@ def query_as_json(con, stmt, params=None):
 
     stmt = '\n'.join(buf)
     return query_json_strings(con, stmt, params)
-
-
-query_single = query_single_row  # Alias.
 
 
 def execute(con, stmt, params=None):
@@ -346,6 +347,37 @@ def bulk_insert(con, tableName: str, rowDictList: list,
 
     # Otherwise just the rowcount
     return rc
+
+class QueryTool(QueryBuilder):
+    #
+    # A QueryBuilder which holds a connection and
+    # has query(), query_one(), etc. methods to run
+    # the built-up query.
+
+    def __init__(self, con):
+        QueryBuilder.__init__(self)
+        self._con = con
+
+    def query_single_value(self):
+        return query_single_value(self._con, self.statement, self.parameters)
+
+    def query_single_column(self):
+        return query_single_column(self._con, self.statement, self.parameters)
+
+    def query_single_row(self):
+        return query_single_row(self._con, self.statement, self.parameters)
+
+    query_single = query_single_row # Alias
+
+    def query(self):
+        return query(self._con, self.statement, self.parameters)
+
+    def query_json_strings(self):
+        return query_json_strings(self._con, self.statement, self.parameters)
+
+    def query_as_json(self):
+        return query_as_json(self._con, self.statement, self.parameters)
+
 
 
 class LiteralValue(str):
