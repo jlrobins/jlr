@@ -50,7 +50,8 @@ def test_compound_where_nested_expressions():
 		.project('count(*)') \
 		.where(AND(
 				("storage_type = %s", 'email'),
-				OR(('date_entered > current_date'), ('document_id > %s', 4564))))
+				OR(('date_entered > current_date'),
+							('document_id > %s', 4564))))
 
 	assert qb.statement == 'SELECT count(*) FROM document WHERE (storage_type = %s) AND ((date_entered > current_date) OR (document_id > %s))', qb.statement
 	assert qb.parameters == ('email', 4564), qb.parameters
@@ -61,7 +62,7 @@ def test_join_using():
 
 	qb.relation('document d') \
 		.join('email_documents.email em', using='document_id') \
-		.project('count(*)') \
+		.project('count(*)')
 
 	assert qb.statement == 'SELECT count(*) FROM document d' \
 							' INNER JOIN email_documents.email em' \
@@ -73,7 +74,7 @@ def test_join_on():
 	qb.relation('document d') \
 		.join('email_documents.email em',
 					on='d.document_id == em.document_id') \
-		.project('count(*)') \
+		.project('count(*)')
 
 	assert qb.statement == \
 			'SELECT count(*) FROM document d' \
@@ -86,7 +87,7 @@ def test_right_join_on():
 	qb.relation('document d') \
 		.right_join('email_documents.email em',
 					on='d.document_id == em.document_id') \
-		.project('count(*)') \
+		.project('count(*)')
 
 	assert qb.statement == \
 			'SELECT count(*) FROM document d' \
@@ -100,7 +101,22 @@ def test_full_outer_join_on():
 	qb.relation('document d') \
 		.outer_join('email_documents.email em',
 					on='d.document_id == em.document_id') \
-		.project('count(*)') \
+		.project('count(*)')
+
+	assert qb.statement == \
+			'SELECT count(*) FROM document d' \
+			' FULL OUTER JOIN email_documents.email em' \
+			' ON (d.document_id == em.document_id)', qb.statement
+
+def test_multiple_joins():
+	qb = QueryBuilder()
+
+	qb.relation('document d') \
+		.join('email_documents.email em',
+					on='d.document_id == em.document_id') \
+		.left_join('document_comment dc',
+					using='legal_case_id, document_id')
+		.project('count(*)')
 
 	assert qb.statement == \
 			'SELECT count(*) FROM document d' \
