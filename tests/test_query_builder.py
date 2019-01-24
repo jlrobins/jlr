@@ -1,4 +1,4 @@
-from jlr.query_builder import QueryBuilder, AND, OR
+from jlr.query_builder import QueryBuilder, AND, OR, AliasException
 
 
 
@@ -189,6 +189,17 @@ def test_multiple_join_different_aliases_honored():
 			' INNER JOIN email_documents.email em2' \
 			' ON (d.document_id == em2.document_id' \
 			' and em2.document_id > 12)', qb.statement
+
+def test_complain_at_reused_alias():
+	qb = QueryBuilder().relation('foo f')
+
+	try:
+		qb.join('foonly f', using='id')
+		raised = False
+	except AliasException as e:
+		raised = True
+
+	assert raised, 'Should have balked at using alias "f" for two different relations'
 
 def test_limit_no_offset():
 	qb = QueryBuilder()
