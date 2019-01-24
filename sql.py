@@ -1,6 +1,8 @@
 import psycopg2
 import psycopg2.extras
 
+import json
+
 from jlr.query_builder import QueryBuilder, AND, OR
 
 
@@ -139,6 +141,15 @@ def query_as_json(con, stmt, params=None):
     stmt = '\n'.join(buf)
     return query_json_strings(con, stmt, params)
 
+def query_single_column_as_json_array(con, stmt, params=None):
+    ###
+    # Similar to query_as_json, but return a string
+    # describing a JSON array of scalar
+    ###
+
+    res = query_single_column(con, stmt, params)
+    # Just punt out to json.dumps for the rest.
+    return json.dumps(res)
 
 def execute(con, stmt, params=None):
     ###
@@ -377,6 +388,9 @@ class QueryTool(QueryBuilder):
 
     def query_as_json(self):
         return query_as_json(self._con, self.statement, self.parameters)
+
+    def query_single_column_as_json_array(self):
+        return query_single_column_as_json_array(self._con, self.statement, self.parameters)
 
 
 
