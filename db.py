@@ -178,6 +178,9 @@ def configure(params, timeout_secs=30,
     mc = ManagedConnection(params, timeout_secs=timeout_secs,
                            cursor_factory=cursor_factory)
 
+def connection():
+    return mc.begin_transaction()
+
 
 def flask_connection():
     global mc
