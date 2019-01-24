@@ -17,7 +17,7 @@ class QueryBuilder:
 
         self._relation_aliases = set()
 
-        self._parameters = []
+        self._where_params = []
 
     def relation(self, main_relation_to_query):
         self._main_relation = main_relation_to_query
@@ -70,10 +70,10 @@ class QueryBuilder:
         if isinstance(expression, ExpressionAndParams):
             assert not params
             self._where = expression.expression
-            self._parameters.extend(expression.parameters)
+            self._where_params.extend(expression.parameters)
         else:
             self._where = expression
-            self._parameters.extend(params)
+            self._where_params.extend(params)
 
         return self
 
@@ -102,11 +102,7 @@ class QueryBuilder:
 
                 buf.append('%s JOIN %s %s (%s)' % (
                             kind, relation, how, how_expression))
-                if params:
-                    if isinstance(params, tuple):
-                        self._parameters.extend(params)
-                    else:
-                        self._parameters.append(params)
+
 
         if self._where:
             buf.append('WHERE')
@@ -126,8 +122,18 @@ class QueryBuilder:
     @property
     def parameters(self):
         params = []
-        params.extend(self._parameters)
-        # Probably need to break all the others apart too.
+
+        # join params are buried as the last member of
+        # the _joins tuples. See .join().
+        for j in self._joins:
+            join_params = j[-1]
+            if join_params:
+                if isinstance(join_params, tuple):
+                    params.extend(join_params)
+                else:
+                    params.append(join_params)
+
+        params.extend(self._where_params)
         params.extend(self._having_params)
 
         return tuple(params)
