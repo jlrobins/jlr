@@ -224,8 +224,6 @@ class ExpressionAndParams:
 
         # Likewise for 4) : wrap the trailing parameters in a single tuple.
 
-        print('%d %r' % (len(args), args))
-
         # Case 0:
         if len(args) == 1 and isinstance(args, tuple):
             args = args[0]
