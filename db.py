@@ -208,7 +208,7 @@ def register_composite_types():
     con = mc.begin_transaction()
 
     typeconverters = [o for o in psycopg2.__dict__.values() if
-                      type(o) is psycopg2.STRING]
+                      isinstance(o, type(psycopg2.STRING))]
 
     oid_to_typeconverter = {}
     for tc in typeconverters:
@@ -244,7 +244,7 @@ def register_composite_types():
 
             if not base_type_adaptor:
                 raise Exception('Unknown type adaptor for %s'
-                                'for domain array type %s'
+                                ' for domain array type %s'
                                 % (c.typname, c.type_to_register))
 
             psycopg2.extensions.register_type(
