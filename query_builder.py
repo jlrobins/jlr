@@ -11,6 +11,10 @@ class QueryBuilder:
         self._joins = []
         self._where = None
         self._group_by = []
+
+        self._having = []
+        self._having_params = []
+
         self._relation_aliases = set()
 
         self._parameters = []
@@ -53,6 +57,11 @@ class QueryBuilder:
         self._projections.extend(args)
         return self
 
+    def having(self, expression, *params):
+        self._having.append(expression)
+        self._having_params.extend(params)
+        return self
+
     def group_by(self, *args):
         self._group_by.extend(args)
         return self
@@ -65,6 +74,8 @@ class QueryBuilder:
         else:
             self._where = expression
             self._parameters.extend(params)
+
+        return self
 
     @property
     def statement(self):
@@ -106,11 +117,20 @@ class QueryBuilder:
             buf.append('GROUP BY')
             buf.append(', '.join(str(gb) for gb in self._group_by))
 
+        if self._having_params:
+            buf.append('HAVING')
+            buf.append(', '.join(str(h) for h in self._having))
+
         return ' '.join(buf)
 
     @property
     def parameters(self):
-        return tuple(self._parameters)
+        params = []
+        params.extend(self._parameters)
+        # Probably need to break all the others apart too.
+        params.extend(self._having_params)
+
+        return tuple(params)
 
     def _scan_alias(self, relation_expr):
         assert '"' not in relation_expr, \

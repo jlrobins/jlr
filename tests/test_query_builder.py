@@ -12,6 +12,21 @@ def test_no_where_clause():
 	assert qb.statement == 'SELECT storage_type, count(*) FROM document GROUP BY 1', qb.statement
 
 
+def test_having():
+	qb = QueryBuilder()
+
+	qb.relation('document') \
+		.project('count(*)') \
+		.having('count(*) > %s', 123) \
+		.where('document_id > %s', 999) \
+		.project('storage_type') \
+		.group_by('storage_type')
+
+	# Should be observed in the proper order, not funcall order.
+	assert qb.parameters == (999, 123)
+	assert qb.statement == 'SELECT count(*), storage_type FROM document' \
+			' WHERE document_id > %s GROUP BY storage_type' \
+			' HAVING count(*) > %s'
 
 
 def test_simple_where_clause():
