@@ -79,10 +79,9 @@ def test_compound_where_nested_expressions():
 
 	qb.relation('document') \
 		.project('count(*)') \
-		.where(AND(
-				("storage_type = %s", 'email'),
-				OR(('date_entered > current_date'),
-							('document_id > %s', 4564))))
+		.where("storage_type = %s", 'email') \
+		.where(OR(('date_entered > current_date'),
+							('document_id > %s', 4564)))
 
 	assert qb.statement == 'SELECT count(*) FROM document WHERE (storage_type = %s) AND ((date_entered > current_date) OR (document_id > %s))', qb.statement
 	assert qb.parameters == ('email', 4564), qb.parameters
