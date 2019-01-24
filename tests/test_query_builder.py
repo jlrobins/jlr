@@ -34,7 +34,7 @@ def test_out_of_order_params():
 	qb.relation('document') \
 		.project('document_id') \
 		.having('count(*) > %s', 999) \
-		.where('a between %s and %s', (555, 666)) \
+		.where('a between %s and %s', 555, 666) \
 		.join('foo f', on='f.id = d.id and f.id > %s and d.id < %s', params=(99, 22)) \
 		.join('bar b', on='b.id = d.id and b.id in %s', params=(('a', 'b'),))
 
@@ -190,3 +190,75 @@ def test_multiple_join_different_aliases_honored():
 			' INNER JOIN email_documents.email em2' \
 			' ON (d.document_id == em2.document_id' \
 			' and em2.document_id > 12)', qb.statement
+
+def test_limit_no_offset():
+	qb = QueryBuilder()
+
+	qb.relation('document') \
+		.project('document_id') \
+		.where('document_id < %s', 200) \
+		.limit(20)
+
+	assert qb.statement == \
+		'SELECT document_id FROM document WHERE document_id < %s LIMIT %s', \
+		'Statement was: %s'  % qb.statement
+
+	assert qb.parameters == (200, 20)
+
+def test_limit_limit_plus_offset():
+	qb = QueryBuilder()
+
+	qb.relation('document') \
+		.project('document_id') \
+		.where('document_id < %s', 200) \
+		.limit(20, offset=10)
+
+	assert qb.statement == \
+		'SELECT document_id FROM document WHERE document_id < %s LIMIT %s OFFSET %s', \
+		'Statement was: %s'  % qb.statement
+
+	assert qb.parameters == (200, 20, 10)
+
+def test_limit_separate_offset():
+	qb = QueryBuilder()
+
+	qb.relation('document') \
+		.project('document_id') \
+		.where('document_id < %s', 200) \
+		.limit(20) \
+		.offset(10)
+
+	assert qb.statement == \
+		'SELECT document_id FROM document WHERE document_id < %s LIMIT %s OFFSET %s', \
+		'Statement was: %s'  % qb.statement
+
+	assert qb.parameters == (200, 20, 10)
+
+def test_offset_requires_limit():
+	qb = QueryBuilder()
+
+	qb.relation('document') \
+		.project('document_id') \
+		.where('document_id < %s', 200) \
+
+	try:
+		qb.offset(10)
+		print(qb.statement)
+		raised = False
+	except AssertionError as e:
+		raised = True
+
+def test_second_call_to_relation_overwrites():
+	qb = QueryBuilder()
+
+	qb.relation('document') \
+		.project('document_id') \
+		.where('document_id < %s', 200) \
+
+	qb.relation('document_view')
+
+	assert qb.statement == \
+		'SELECT document_id FROM document_view WHERE document_id < %s', \
+		'Statement was: %s'  % qb.statement
+
+

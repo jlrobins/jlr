@@ -21,6 +21,9 @@ class QueryBuilder:
         self._having = []
         self._having_params = []
 
+        self._limit = None
+        self._offset = None
+
         self._relation_aliases = set()
 
     def relation(self, main_relation_to_query):
@@ -72,6 +75,21 @@ class QueryBuilder:
 
     def where(self, *args):
         self._where.append(args)
+        return self
+
+    def limit(self, value: int, offset=None):
+        assert isinstance(value, int)
+        assert isinstance(offset, int) or offset is None
+        assert value >= 0
+
+        self._limit = value
+        self._offset = offset
+        return self
+
+    def offset(self, offset):
+        assert isinstance(offset, int) and offset > 0
+        assert self._limit is not None
+        self._offset = offset
 
         return self
 
@@ -115,6 +133,11 @@ class QueryBuilder:
             buf.append('HAVING')
             buf.append(', '.join(str(h) for h in self._having))
 
+        if self._limit:
+            buf.append('LIMIT %s')
+        if self._offset:
+            buf.append('OFFSET %s')
+
         return ' '.join(buf)
 
     @property
@@ -133,6 +156,11 @@ class QueryBuilder:
 
         params.extend(self._where.parameters)
         params.extend(self._having_params)
+
+        if self._limit:
+            params.append(self._limit)
+            if self._offset:
+                params.append(self._offset)
 
         return tuple(params)
 
