@@ -1,6 +1,8 @@
 import psycopg2
 import psycopg2.extras
 
+import itertools
+
 import json
 
 from jlr.query_builder import QueryBuilder, AND, OR
@@ -263,10 +265,23 @@ def get_pct_s_string(values):
     pcts = ['%s'] * len(values)
     return ','.join(pcts)
 
+def batched_bulk_insert(con, tableName: str, rowDicts, batch_size=500, **kwargs):
+    """ Call bulk_insert in batches of batch_size rows drained from
+        rowDicts in a generator-friendly manner. """
+
+    rows_iter = iter(rowDicts)
+
+    batch = list(itertools.islice(rows_iter, batch_size))
+    while batch:
+        bulk_insert(con, tableName, batch, **kwargs)
+        batch = list(itertools.islice(rows_iter, batch_size))
+
+
 
 def bulk_insert(con, tableName: str, rowDictList: list,
                 colList=None, excludeKeys=None,
-                addToEveryRow=None, return_column=None):
+                addToEveryRow=None, return_column=None,
+                batch_size=None):
     ###
     #   Bulk-insert the rows in rowDictList using single-round trip
     #     "insert into ... values (), (), ... ()"
