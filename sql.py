@@ -4,6 +4,8 @@ import psycopg2.extras
 import itertools
 
 import json
+from collections import defaultdict
+
 
 from jlr.query_builder import QueryBuilder, AND, OR
 
@@ -421,3 +423,66 @@ class LiteralValue(str):
         if proto == psycopg2.extensions.ISQLQuote:
             return self
         return None
+
+
+def introspect_schema(conn, schema_name):
+
+    # Learn about tables and columns
+    tables = query(conn, """
+        SELECT
+            t.table_name
+        FROM information_schema.tables t
+        WHERE
+            t.table_schema = %s
+            and t.table_name != 'pg_stat_statements'
+        order by 1
+    """, (schema_name,))
+
+    columns = query(conn, """
+        select t.table_name, c.column_name, c.data_type
+        from information_schema.columns c
+            join information_schema.tables t using (table_schema, table_name)
+        where
+            c.table_schema = %s
+            and t.table_name != 'pg_stat_statements'
+        order by t.table_name, c.ordinal_position
+    """, (schema_name,))
+
+    # Stitch into objects.
+    tables_by_name = {}
+    for t in tables:
+        tables_by_name[t.table_name] = MetadataTable(schema_name, t.table_name)
+
+    del t
+
+    columns_by_table_name = defaultdict(list)
+    for c in columns:
+        columns_by_table_name[c.table_name].append(MetadataColumn(c.column_name, c.data_type))
+
+    del c
+
+    for tname, column_objs in columns_by_table_name.items():
+        tables_by_name[tname].set_columns(column_objs)
+
+    return tables_by_name
+
+class MetadataColumn:
+    def __init__(self, name, data_type):
+        self.name = name
+        self.data_type = data_type
+
+    def __repr__(self):
+        return '%s:%s' % (self.name, self.data_type)
+
+class MetadataTable:
+    def __init__(self, schema_name, table_name):
+        self.schema_name = schema_name
+        self.name = table_name
+        self.columns = None
+
+    def set_columns(self, columns):
+        self.columns = columns
+
+    def __repr__(self):
+        return 'Table "%s.%s": %s' % (self.schema_name, self.name, self.columns)
+
