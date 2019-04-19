@@ -466,6 +466,38 @@ def introspect_schema(conn, schema_name):
 
     return tables_by_name
 
+def introspect_table(conn, table_name):
+    if '.' in table_name:
+        schema_name, table_name = table_name.split('.')
+
+        data = query(conn, """
+            select c.column_name, c.data_type
+            from information_schema.columns c
+                join information_schema.tables t using (table_schema, table_name)
+            where
+                c.table_schema = %s
+                and t.table_name = %s
+            order by t.table_name, c.ordinal_position
+        """, (schema_name, table_name))
+
+    else:
+        data = query(conn, """
+            select c.table_schema, c.column_name, c.data_type
+            from information_schema.columns c
+                join information_schema.tables t using (table_schema, table_name)
+            where
+                t.table_name = %s
+            order by t.table_name, c.ordinal_position
+        """, (table_name, ))
+
+        observed_schemas_with_that_table_name = set(d.table_schema for d in data)
+        if len(observed_schemas_with_that_table_name) != 1:
+            raise Exception('Multiple tables in database with name %s (schemas %s)! Please pass in fully qualified table name' %\
+                    (table_name, observed_schemas_with_that_table_name))
+
+    return [ MetadataColumn(d.column_name, d.data_type) for d in data]
+
+
 class MetadataColumn:
     def __init__(self, name, data_type):
         self.name = name
