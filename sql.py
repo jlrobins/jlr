@@ -425,7 +425,7 @@ class LiteralValue(str):
         return None
 
 
-def introspect_schema(conn, schema_name):
+def introspect_schema(conn, schema_name, fully_qualify_tables=False):
 
     # Learn about tables and columns
     tables = query(conn, """
@@ -449,15 +449,16 @@ def introspect_schema(conn, schema_name):
     """, (schema_name,))
 
     # Stitch into objects.
+    key_prefix=schema_name + '.' if fully_qualify_tables else ''
     tables_by_name = {}
     for t in tables:
-        tables_by_name[t.table_name] = MetadataTable(schema_name, t.table_name)
+        tables_by_name[key_prefix + t.table_name] = MetadataTable(schema_name, t.table_name)
 
     del t
 
     columns_by_table_name = defaultdict(list)
     for c in columns:
-        columns_by_table_name[c.table_name].append(MetadataColumn(c.column_name, c.data_type))
+        columns_by_table_name[key_prefix + c.table_name].append(MetadataColumn(c.column_name, c.data_type))
 
     del c
 
